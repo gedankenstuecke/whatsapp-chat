@@ -1,0 +1,104 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+require(lubridate)
+require(ggplot2)
+```
+
+
+# Load Data
+
+```{r}
+t <- readLines(file('_chat 2.txt', "r"))
+```
+
+# Extract information
+
+## Timestamps
+```{r}
+times_unformatted <- sapply(t, function(x){
+  strsplit(x,'\\[|\\]')[[1]][2]
+})
+times <- as.POSIXlt(as.character(times_unformatted), format='%m/%d/%y, %H:%M:%S')
+```
+
+
+## User
+```{r}
+users <- as.character(sapply(t, function(x){
+  trimws(strsplit(x,'\\]|\\:')[[1]][4])
+}))
+```
+
+
+## Make dataframe
+
+```{r}
+df <- data.frame('time' = times,
+                 'num_posts' = cumsum(rep(1,length(times))),
+                 'user' = users)
+df_time <- df
+```
+
+
+#Plot  activity
+
+```{r, fig.width=3, fig.height=2}
+ggplot(df, aes(x=time,y=num_posts)) +
+  xlab('Date') +
+  geom_smooth(data=subset(df,df$time >= as.Date("2020-06-10") & df$time <= as.Date("2020-08-10")),method='lm',aes(x=time,y=num_posts)) +
+  geom_smooth(data=subset(df,df$time >= as.Date("2020-09-01") & df$time <= as.Date("2020-10-10")),method='lm',aes(x=time,y=num_posts)) +
+  geom_step(size=1) + 
+  scale_y_continuous('number of posts') + 
+  theme_minimal(base_size = 15)
+  # geom_segment(data=event_df,aes(x=x1-1,xend=x1,y=y1-16.5,yend=y1-18.5), arrow = arrow(length = unit(0.03, "npc")),size=1)
+  
+```
+
+
+# Plot user activity
+
+
+```{r, fig.width=3, fig.height=2.2}
+
+tb <- table(users)
+
+# remove non interesting stuff
+words_rm <- c('added', 'created','Thursday Research Drinks','left','changed their phone number')
+inds_rm <- grep(paste(words_rm,collapse = '|'),names(tb))
+tb <- tb[-inds_rm]
+
+#normalise by number of days present
+num_days <- sapply(names(tb), function(x){
+  floor(as.numeric(df_time$time[nrow(df_time)] - df_time$time[match(x,df_time$user)]))
+})
+
+tb <- signif(tb / num_days,2)
+
+
+# names(tb)[names(tb)==''] <- 'Unknown'
+df <- data.frame('user'=names(tb),
+                'number'=as.numeric(tb))
+df <- df[order(-df[,2]),]
+
+df$user <- factor(df$user,levels = df$user[order(-df$number)])
+
+# df <- df[-which(df$Category=='Unknown'),]
+
+ggplot(data=df[1:20,], aes(x=user, y=number)) +
+  geom_bar(stat="identity", fill="steelblue") +
+    geom_text(aes(label=number), vjust=-0.3, size=2)+
+  xlab('')+
+  ylab('Number of posts per day in Whatsapp group')+
+  # scale_y_log10()+
+  theme(text = element_text(size=12),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.1))
+```
+
+```{r}
+
+```
+
